@@ -27,7 +27,6 @@ class _StartupScreenState extends State<StartupScreen> {
         Uri.parse('http://192.168.29.110:8090/app-mgmt/v1/getAppDetails');
     final Map<String, String> headers = {
       'appVersion': '1.0.0',
-      'appName': 'odin messenger',
     };
 
     try {
@@ -41,7 +40,7 @@ class _StartupScreenState extends State<StartupScreen> {
           final responseDTO = ResponseDTO.fromJson(jsonResponse);
           if (responseDTO.statusCode == ResponseCodes.UPDATE_REQUIRED_CODE) {
             showMessage(ResponseMessages.UPDATE_REQUIRED_MESSAGE);
-            exitAfterDelay(AppUtility.APP_EXIT_DELAY);
+            exitForUpdate(AppUtility.APP_EXIT_DELAY);
           }
         } else {
           showMessage(ResponseMessages.STARTUP_FAILURE);
@@ -70,6 +69,12 @@ class _StartupScreenState extends State<StartupScreen> {
   }
 
   void exitAfterDelay(int delay) {
+    Future.delayed(Duration(seconds: delay), () {
+      SystemNavigator.pop(); // Use this to exit the app.
+    });
+  }
+
+  void exitForUpdate(int delay) {
     Future.delayed(Duration(seconds: delay), () {
       SystemNavigator.pop(); // Use this to exit the app.
     });
