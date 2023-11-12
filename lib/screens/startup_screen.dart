@@ -10,6 +10,7 @@ import '../constants/response_messages.dart';
 import '../dto/response_dto.dart';
 import '../utility/app_utility.dart';
 import '../utility/app_properties.dart';
+import '../utility/custom_toast.dart';
 
 class StartupScreen extends StatefulWidget {
   @override
@@ -31,7 +32,7 @@ class _StartupScreenState extends State<StartupScreen> {
     final String? appVersion = AppProperties.getProperty('app.version');
 
     if (baseUrl == null || environment == null || appVersion == null) {
-      showMessage("Configuration properties not found");
+      CustomToast.show(context, "Configuration properties not found");
       return;
     }
 
@@ -39,6 +40,7 @@ class _StartupScreenState extends State<StartupScreen> {
     final Map<String, String> headers = {
       'appVersion': appVersion,
       'env': environment,
+      'lang': 'EN',
     };
 
     try {
@@ -51,38 +53,96 @@ class _StartupScreenState extends State<StartupScreen> {
         if (status == 'SUCCESS') {
           final responseDTO = ResponseDTO.fromJson(jsonResponse);
           if (responseDTO.statusCode == ResponseCodes.UPDATE_REQUIRED_CODE) {
-            showMessage(ResponseMessages.UPDATE_REQUIRED_MESSAGE);
+            CustomToast.show(context, ResponseMessages.UPDATE_REQUIRED_MESSAGE);
             exitForUpdate(AppUtility.APP_EXIT_DELAY);
           } else {
             final apiInfoList = jsonResponse['data'];
-            // Create a map of action to APIInfoResponseDTO
-            for (final apiInfo in apiInfoList) {
-              final apiInfoResponseDTO = APIInfoResponseDTO.fromJson(apiInfo);
-              actionToApiInfo[apiInfoResponseDTO.action] = apiInfoResponseDTO;
+            if (apiInfoList != null && apiInfoList is List) {
+              for (final apiInfo in apiInfoList) {
+                if (apiInfo != null && apiInfo is Map) {
+                  final apiInfoResponseDTO = APIInfoResponseDTO.fromJson(
+                      apiInfo.cast<String, dynamic>());
+                  actionToApiInfo[apiInfoResponseDTO.action] =
+                      apiInfoResponseDTO;
+                }
+              }
+            }
+
+            final appUpdateApiInfo = actionToApiInfo["APP_UPDATE"];
+            if (appUpdateApiInfo != null) {
+              final appUpdateResponse = await http.get(
+                Uri.parse(appUpdateApiInfo.uri),
+                headers: headers,
+              );
+              print("evaluating response");
+              if (appUpdateResponse.statusCode == 200) {
+                final appUpdateResponseData = appUpdateResponse.body;
+                // Log the response data to check its content
+                print("Response Data: $appUpdateResponseData");
+
+                if (appUpdateResponseData != null &&
+                    appUpdateResponseData.isNotEmpty) {
+                  try {
+                    final responseObject = ResponseDTO.fromJson(
+                        json.decode(appUpdateResponseData));
+
+                    if (responseObject.statusCode ==
+                        ResponseCodes.UPDATE_REQUIRED_CODE) {
+                      if (responseObject.message != null &&
+                          responseObject.message!.isNotEmpty) {
+                        CustomToast.show(context, responseObject.message!);
+                      } else {
+                        print("Update message is null or empty");
+                        CustomToast.show(
+                            context, ResponseMessages.UPDATE_REQUIRED_MESSAGE);
+                      }
+                      exitForUpdate(AppUtility.APP_EXIT_DELAY);
+                    } else if (responseObject.statusCode! >=
+                        ResponseCodes.SUCCESS_CODE) {
+                      print("Success");
+                      // CustomToast.show(context, ResponseMessages.SUCCESS_MESSAGE);
+                    }
+                  } catch (e) {
+                    print("Failed to decode JSON: $e");
+                    CustomToast.show(
+                        context, "Failed to process server response");
+                  }
+                } else {
+                  print("Empty or null response received");
+                  CustomToast.show(context, "Empty or null response received");
+                }
+              } else {
+                print("Failed to fetch app update data");
+                if (appUpdateResponse.body.isEmpty) {
+                  print("Empty response");
+                  CustomToast.show(context, "Server Error: Empty Response");
+                } else {
+                  print("Startup failure");
+                  CustomToast.show(context, ResponseMessages.STARTUP_FAILURE);
+                }
+              }
             }
           }
         } else {
-          showMessage(ResponseMessages.STARTUP_FAILURE);
+          print("i am from 1");
+          CustomToast.show(context, ResponseMessages.STARTUP_FAILURE);
           exitAfterDelay(AppUtility.APP_EXIT_DELAY);
         }
       } else {
-        showMessage(ResponseMessages.STARTUP_FAILURE);
+        print("i am from 2");
+        CustomToast.show(context, ResponseMessages.STARTUP_FAILURE);
         exitAfterDelay(AppUtility.APP_EXIT_DELAY);
       }
     } catch (e) {
-      showMessage(ResponseMessages.STARTUP_FAILURE);
+      print("i am from 3 $e");
+      CustomToast.show(context, ResponseMessages.STARTUP_FAILURE);
       exitAfterDelay(AppUtility.APP_EXIT_DELAY);
     }
   }
 
-  void showMessage(String message) {
-    Fluttertoast.showToast(
-      msg: message,
-      toastLength: Toast.LENGTH_SHORT,
-      gravity: ToastGravity.CENTER,
-      backgroundColor: Colors.black,
-      textColor: Colors.white,
-    );
+  void showUpdatePrompt(String message) {
+    // Implement update prompt logic here
+    // Show an alert or prompt to the user to update the app using the provided message
   }
 
   void exitAfterDelay(int delay) {
